@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.IO;
+using System.Text;
+using OSGeo.GDAL;
 using GISUniversalConverterPro.Converters;
 using GISUniversalConverterPro.Interfaces;
 using GISUniversalConverterPro.Models;
@@ -16,17 +19,25 @@ namespace GISUniversalConverterPro.Engines
     {
         private CancellationToken _cancellationToken;
         private bool _cancelRequested;
+        private LoggingService? _loggingService;
 
         public string Name => "Internal Conversion Engine";
         public bool IsAvailable => true;
         public ConversionJob? Job { get; set; }
         public Action<int, string>? ProgressReporter { get; set; }
+        public LoggingService? LoggingService
+        {
+            get => _loggingService;
+            set => _loggingService = value;
+        }
 
         public void Initialize()
         {
             try
             {
                 GdalBase.ConfigureAll();
+                Gdal.SetConfigOption("SHAPE_ENCODING", "UTF-8");
+                Gdal.SetConfigOption("OGR_FORCE_ASCII", "NO");
             }
             catch (Exception ex)
             {
@@ -71,6 +82,7 @@ namespace GISUniversalConverterPro.Engines
             }
 
             var layerCount = dataSource.GetLayerCount();
+            LogDiagnostic($"Opened KML datasource: {inputPath}; LayerCount={layerCount}");
             for (var index = 0; index < layerCount; index++)
             {
                 if (_cancelRequested || _cancellationToken.IsCancellationRequested)
@@ -85,6 +97,7 @@ namespace GISUniversalConverterPro.Engines
                 }
 
                 var layerName = string.IsNullOrWhiteSpace(layer.GetName()) ? $"layer_{index + 1}" : layer.GetName();
+                LogLayerSample(layer, $"After opening datasource, layer {index + 1}/{layerCount} ({layerName})");
                 var outputBaseName = Path.Combine(outputDirectory, $"{safeName}_{layerName}");
 
                 WriteShapefile(layer, outputBaseName);
@@ -146,14 +159,19 @@ namespace GISUniversalConverterPro.Engines
             ProgressReporter?.Invoke(percent, message);
         }
 
+        private void LogDiagnostic(string message)
+        {
+            _loggingService?.Log($"[InternalEngine UTF-8 Trace] {message}");
+        }
+
         private void WriteShapefile(Layer layer, string outputBaseName)
         {
             var outputPath = $"{outputBaseName}.shp";
             var driver = Ogr.GetDriverByName("ESRI Shapefile");
             using var outputDataSource = driver.CreateDataSource(outputPath, Array.Empty<string>());
-            using var outputLayer = outputDataSource.CreateLayer(Path.GetFileNameWithoutExtension(outputPath), CreateSpatialReference(), layer.GetGeomType(), null);
-            CopyLayerSchema(layer, outputLayer);
-            CopyFeatures(layer, outputLayer);
+            using var outputLayer = outputDataSource.CreateLayer(Path.GetFileNameWithoutExtension(outputPath), CreateSpatialReference(), layer.GetGeomType(), new[] { "ENCODING=UTF-8" });
+            CopyLayerSchema(layer, outputLayer, LogDiagnostic);
+            CopyFeatures(layer, outputLayer, LogDiagnostic);
         }
 
         private void WriteGeoPackage(Layer layer, string outputBaseName)
@@ -162,8 +180,8 @@ namespace GISUniversalConverterPro.Engines
             var driver = Ogr.GetDriverByName("GPKG");
             using var outputDataSource = driver.CreateDataSource(outputPath, Array.Empty<string>());
             using var outputLayer = outputDataSource.CreateLayer(Path.GetFileNameWithoutExtension(outputPath), CreateSpatialReference(), layer.GetGeomType(), null);
-            CopyLayerSchema(layer, outputLayer);
-            CopyFeatures(layer, outputLayer);
+            CopyLayerSchema(layer, outputLayer, LogDiagnostic);
+            CopyFeatures(layer, outputLayer, LogDiagnostic);
         }
 
         private void WriteGeoJson(Layer layer, string outputBaseName)
@@ -172,8 +190,8 @@ namespace GISUniversalConverterPro.Engines
             var driver = Ogr.GetDriverByName("GeoJSON");
             using var outputDataSource = driver.CreateDataSource(outputPath, Array.Empty<string>());
             using var outputLayer = outputDataSource.CreateLayer(Path.GetFileNameWithoutExtension(outputPath), CreateSpatialReference(), layer.GetGeomType(), null);
-            CopyLayerSchema(layer, outputLayer);
-            CopyFeatures(layer, outputLayer);
+            CopyLayerSchema(layer, outputLayer, LogDiagnostic);
+            CopyFeatures(layer, outputLayer, LogDiagnostic);
         }
 
         private static SpatialReference CreateSpatialReference()
@@ -183,29 +201,101 @@ namespace GISUniversalConverterPro.Engines
             return spatialReference;
         }
 
-        private static void CopyLayerSchema(Layer sourceLayer, Layer targetLayer)
+        private static void CopyLayerSchema(Layer sourceLayer, Layer targetLayer, Action<string> logDiagnostic)
         {
-            for (var index = 0; index < sourceLayer.GetLayerDefn().GetFieldCount(); index++)
+            var sourceDefinition = sourceLayer.GetLayerDefn();
+            for (var index = 0; index < sourceDefinition.GetFieldCount(); index++)
             {
-                var fieldDefinition = sourceLayer.GetLayerDefn().GetFieldDefn(index);
-                targetLayer.CreateField(fieldDefinition, 1);
+                var sourceFieldDefinition = sourceDefinition.GetFieldDefn(index);
+                using var targetFieldDefinition = new FieldDefn(sourceFieldDefinition.GetName(), sourceFieldDefinition.GetFieldType());
+                targetFieldDefinition.SetWidth(sourceFieldDefinition.GetWidth());
+                targetFieldDefinition.SetPrecision(sourceFieldDefinition.GetPrecision());
+                logDiagnostic($"Creating FieldDefn; Index={index}; Name={sourceFieldDefinition.GetName()}; Type={sourceFieldDefinition.GetFieldType()}; Width={sourceFieldDefinition.GetWidth()}; Precision={sourceFieldDefinition.GetPrecision()}");
+                targetLayer.CreateField(targetFieldDefinition, 1);
             }
         }
 
-        private static void CopyFeatures(Layer sourceLayer, Layer targetLayer)
+        private static void CopyFeatures(Layer sourceLayer, Layer targetLayer, Action<string> logDiagnostic)
         {
             sourceLayer.ResetReading();
+            var sourceLayerDefinition = sourceLayer.GetLayerDefn();
+            var targetLayerDefinition = targetLayer.GetLayerDefn();
+
             while (true)
             {
-                using var feature = sourceLayer.GetNextFeature();
-                if (feature is null)
+                using var sourceFeature = sourceLayer.GetNextFeature();
+                if (sourceFeature is null)
                 {
                     break;
                 }
 
-                using var clonedFeature = feature.Clone();
-                targetLayer.CreateFeature(clonedFeature);
+                LogFeatureValues(sourceFeature, sourceLayerDefinition, "After reading source feature", logDiagnostic);
+
+                using var targetFeature = new Feature(targetLayerDefinition);
+                var geometry = sourceFeature.GetGeometryRef();
+                if (geometry is not null)
+                {
+                    using var geometryClone = geometry.Clone();
+                    targetFeature.SetGeometry(geometryClone);
+                }
+
+                LogFeatureValues(sourceFeature, sourceLayerDefinition, "Before creating output feature", logDiagnostic);
+                for (var fieldIndex = 0; fieldIndex < sourceLayerDefinition.GetFieldCount(); fieldIndex++)
+                {
+                    var fieldDefinition = sourceLayerDefinition.GetFieldDefn(fieldIndex);
+                    var fieldName = fieldDefinition.GetName();
+                    var fieldValue = sourceFeature.GetFieldAsString(fieldIndex);
+                    LogTextValue("After reading field value with Feature.GetFieldAsString()", sourceFeature.GetFID(), fieldName, fieldValue, logDiagnostic);
+                    LogTextValue("Before Feature.SetField()", sourceFeature.GetFID(), fieldName, fieldValue, logDiagnostic);
+                    targetFeature.SetField(fieldIndex, fieldValue);
+                }
+
+                LogFeatureValues(targetFeature, targetLayerDefinition, "Before Layer.CreateFeature()", logDiagnostic);
+                targetLayer.CreateFeature(targetFeature);
             }
+        }
+
+        private static void LogLayerSample(Layer layer, string stage, Action<string> logDiagnostic)
+        {
+            layer.ResetReading();
+            var definition = layer.GetLayerDefn();
+            using var feature = layer.GetNextFeature();
+            if (feature is not null)
+            {
+                LogFeatureValues(feature, definition, stage, logDiagnostic);
+            }
+
+            layer.ResetReading();
+        }
+
+        private void LogLayerSample(Layer layer, string stage)
+        {
+            LogLayerSample(layer, stage, LogDiagnostic);
+        }
+
+        private static void LogFeatureValues(Feature feature, FeatureDefn definition, string stage, Action<string> logDiagnostic)
+        {
+            for (var fieldIndex = 0; fieldIndex < definition.GetFieldCount(); fieldIndex++)
+            {
+                var fieldDefinition = definition.GetFieldDefn(fieldIndex);
+                LogTextValue(stage, feature.GetFID(), fieldDefinition.GetName(), feature.GetFieldAsString(fieldIndex), logDiagnostic);
+            }
+        }
+
+        private static void LogTextValue(string stage, long featureId, string fieldName, string? value, Action<string> logDiagnostic)
+        {
+            if (string.IsNullOrEmpty(value) || !ContainsNonAscii(value))
+            {
+                return;
+            }
+
+            var codePoints = string.Join(" ", value.EnumerateRunes().Select(rune => $"U+{rune.Value:X4}"));
+            logDiagnostic(string.Create(CultureInfo.InvariantCulture, $"{stage}; FID={featureId}; Field={fieldName}; Value='{value}'; CodePoints={codePoints}"));
+        }
+
+        private static bool ContainsNonAscii(string value)
+        {
+            return value.Any(character => character > 0x7F);
         }
     }
 }

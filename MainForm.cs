@@ -22,6 +22,7 @@ namespace GISUniversalConverterPro
         private string _engineName = "Internal";
         private CancellationTokenSource? _conversionCancellationTokenSource;
         private bool _isConverting;
+        private bool _isLogCollapsed;
 
         public MainForm()
         {
@@ -33,6 +34,7 @@ namespace GISUniversalConverterPro
 
             InitializeComponent();
             InitializeApplication();
+            ApplyResponsiveLayout();
         }
 
         private void InitializeApplication()
@@ -322,6 +324,7 @@ namespace GISUniversalConverterPro
         {
             totalFilesStatusLabel.Text = $"Total Files: {_jobs.Count}";
             readyFilesStatusLabel.Text = $"Ready Files: {_jobs.Count(job => string.Equals(job.Status, "Ready", StringComparison.OrdinalIgnoreCase))}";
+            ResizeFileColumns();
         }
 
         private static int CalculateOverallProgress(int jobIndex, int totalJobs, int jobPercent)
@@ -374,6 +377,48 @@ namespace GISUniversalConverterPro
             logRichTextBox.AppendText($"{DateTime.Now:HH:mm:ss} {message}{Environment.NewLine}");
             logRichTextBox.SelectionStart = logRichTextBox.Text.Length;
             logRichTextBox.ScrollToCaret();
+        }
+
+        private void ToggleLogSection()
+        {
+            _isLogCollapsed = !_isLogCollapsed;
+            rootLayoutPanel.RowStyles[3].Height = _isLogCollapsed ? 54F : 170F;
+            logRichTextBox.Visible = !_isLogCollapsed;
+            toggleLogButton.Text = _isLogCollapsed ? "📜 إظهار السجل" : "📜 إخفاء السجل";
+        }
+
+        private void ApplyResponsiveLayout()
+        {
+            if (contentLayoutPanel is null || contentLayoutPanel.ColumnStyles.Count < 2)
+            {
+                return;
+            }
+
+            var compact = ClientSize.Width < 1050;
+            contentLayoutPanel.ColumnStyles[0].Width = compact ? 56F : 62F;
+            contentLayoutPanel.ColumnStyles[1].Width = compact ? 44F : 38F;
+            ResizeFileColumns();
+        }
+
+        private void ResizeFileColumns()
+        {
+            if (filesListView is null || filesListView.Columns.Count < 3)
+            {
+                return;
+            }
+
+            var usableWidth = Math.Max(420, filesListView.ClientSize.Width - 8);
+            statusColumnHeader.Width = Math.Max(120, usableWidth / 5);
+            sizeColumnHeader.Width = Math.Max(110, usableWidth / 6);
+            fileNameColumnHeader.Width = Math.Max(220, usableWidth - statusColumnHeader.Width - sizeColumnHeader.Width);
+        }
+
+        private void toggleLogButton_Click(object sender, EventArgs e) => ToggleLogSection();
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            ApplyResponsiveLayout();
         }
 
         private void MainForm_DragEnter(object sender, DragEventArgs e)
