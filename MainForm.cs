@@ -413,8 +413,6 @@ namespace GISUniversalConverterPro
             fileNameColumnHeader.Width = Math.Max(220, usableWidth - statusColumnHeader.Width - sizeColumnHeader.Width);
         }
 
-        private void gradientTimer_Tick(object? sender, EventArgs e) => backgroundPanel.AdvanceGradient();
-
         private void toggleLogButton_Click(object sender, EventArgs e) => ToggleLogSection();
 
         protected override void OnResize(EventArgs e)

@@ -15,9 +15,8 @@ namespace GISUniversalConverterPro
         private ToolStripButton browseOutputToolStripButton;
         private ToolStripButton convertToolStripButton;
         private ToolStripButton cancelToolStripButton;
-        private AnimatedGradientPanel backgroundPanel;
-        private TableLayoutPanel rootLayoutPanel;
-        private RoundedPanel headerPanel;
+        private StaticGradientTableLayoutPanel rootLayoutPanel;
+        private GradientRoundedPanel headerPanel;
         private Label titleLabel;
         private Label subtitleLabel;
         private TableLayoutPanel contentLayoutPanel;
@@ -51,7 +50,6 @@ namespace GISUniversalConverterPro
         private ToolStripStatusLabel totalFilesStatusLabel;
         private ToolStripStatusLabel readyFilesStatusLabel;
         private TableLayoutPanel outputLayoutPanel;
-        private System.Windows.Forms.Timer gradientTimer;
 
         private ToolStripMenuItem fileMenuItem;
         private ToolStripMenuItem addFilesMenuItem;
@@ -91,9 +89,8 @@ namespace GISUniversalConverterPro
             browseOutputToolStripButton = new ToolStripButton();
             convertToolStripButton = new ToolStripButton();
             cancelToolStripButton = new ToolStripButton();
-            backgroundPanel = new AnimatedGradientPanel();
-            rootLayoutPanel = new TableLayoutPanel();
-            headerPanel = new RoundedPanel();
+            rootLayoutPanel = new StaticGradientTableLayoutPanel();
+            headerPanel = new GradientRoundedPanel();
             titleLabel = new Label();
             subtitleLabel = new Label();
             contentLayoutPanel = new TableLayoutPanel();
@@ -127,7 +124,6 @@ namespace GISUniversalConverterPro
             totalFilesStatusLabel = new ToolStripStatusLabel();
             readyFilesStatusLabel = new ToolStripStatusLabel();
             outputLayoutPanel = new TableLayoutPanel();
-            gradientTimer = new System.Windows.Forms.Timer(components);
 
             SuspendLayout();
 
@@ -172,11 +168,6 @@ namespace GISUniversalConverterPro
             cancelToolStripButton.Text = "⏹️ إلغاء";
             cancelToolStripButton.Click += cancelToolStripButton_Click;
 
-            backgroundPanel.Dock = DockStyle.Fill;
-            backgroundPanel.Padding = new Padding(18, 16, 18, 16);
-            backgroundPanel.RightToLeft = RightToLeft.Yes;
-
-            rootLayoutPanel.BackColor = Color.Transparent;
             rootLayoutPanel.Dock = DockStyle.Fill;
             rootLayoutPanel.ColumnCount = 1;
             rootLayoutPanel.RowCount = 4;
@@ -184,9 +175,8 @@ namespace GISUniversalConverterPro
             rootLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             rootLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 98F));
             rootLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 170F));
-            rootLayoutPanel.Padding = new Padding(0);
+            rootLayoutPanel.Padding = new Padding(18, 16, 18, 16);
 
-            headerPanel.BackColor = Color.FromArgb(236, 252, 255);
             headerPanel.CornerRadius = 26;
             headerPanel.Dock = DockStyle.Fill;
             headerPanel.Margin = new Padding(0, 0, 0, 14);
@@ -194,19 +184,19 @@ namespace GISUniversalConverterPro
             titleLabel.Text = "GIS Universal Converter Pro";
             titleLabel.Dock = DockStyle.Top;
             titleLabel.Font = new Font("Segoe UI", 24F, FontStyle.Bold, GraphicsUnit.Point);
-            titleLabel.ForeColor = Color.FromArgb(12, 74, 110);
+            titleLabel.ForeColor = Color.White;
             titleLabel.Height = 48;
             titleLabel.TextAlign = ContentAlignment.MiddleRight;
             subtitleLabel.Text = "لوحة تحويل GIS عصرية تدعم KML / KMZ بمحركات داخلية أو ArcGIS Pro";
             subtitleLabel.Dock = DockStyle.Top;
             subtitleLabel.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
-            subtitleLabel.ForeColor = Color.FromArgb(15, 118, 110);
+            subtitleLabel.ForeColor = Color.FromArgb(224, 247, 250);
             subtitleLabel.Height = 30;
             subtitleLabel.TextAlign = ContentAlignment.MiddleRight;
             headerPanel.Controls.Add(subtitleLabel);
             headerPanel.Controls.Add(titleLabel);
 
-            contentLayoutPanel.BackColor = Color.Transparent;
+            contentLayoutPanel.BackColor = Color.FromArgb(224, 247, 250);
             contentLayoutPanel.Dock = DockStyle.Fill;
             contentLayoutPanel.ColumnCount = 2;
             contentLayoutPanel.RowCount = 1;
@@ -344,7 +334,7 @@ namespace GISUniversalConverterPro
             progressPanel.Controls.Add(progressBar);
             progressPanel.Controls.Add(progressTitleLabel);
 
-            logPanel.BackColor = Color.FromArgb(12, 74, 110);
+            logPanel.BackColor = Color.White;
             logPanel.CornerRadius = 22;
             logPanel.Dock = DockStyle.Fill;
             logPanel.Margin = new Padding(0, 14, 0, 0);
@@ -359,8 +349,8 @@ namespace GISUniversalConverterPro
             logRichTextBox.ReadOnly = true;
             logRichTextBox.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
             logRichTextBox.BorderStyle = BorderStyle.None;
-            logRichTextBox.BackColor = Color.FromArgb(8, 47, 73);
-            logRichTextBox.ForeColor = Color.FromArgb(224, 247, 250);
+            logRichTextBox.BackColor = Color.FromArgb(247, 253, 255);
+            logRichTextBox.ForeColor = Color.FromArgb(12, 74, 110);
             logRichTextBox.Margin = new Padding(0, 10, 0, 0);
             logPanel.Controls.Add(logRichTextBox);
             logPanel.Controls.Add(toggleLogButton);
@@ -371,7 +361,6 @@ namespace GISUniversalConverterPro
             rootLayoutPanel.Controls.Add(contentLayoutPanel, 0, 1);
             rootLayoutPanel.Controls.Add(progressPanel, 0, 2);
             rootLayoutPanel.Controls.Add(logPanel, 0, 3);
-            backgroundPanel.Controls.Add(rootLayoutPanel);
 
             statusStrip.BackColor = Color.FromArgb(236, 252, 255);
             statusStrip.Dock = DockStyle.Bottom;
@@ -387,15 +376,11 @@ namespace GISUniversalConverterPro
             totalFilesStatusLabel.Text = "Total Files: 0";
             readyFilesStatusLabel.Text = "Ready Files: 0";
 
-            gradientTimer.Interval = 75;
-            gradientTimer.Tick += gradientTimer_Tick;
-            gradientTimer.Start();
-
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.FromArgb(250, 252, 255);
             ClientSize = new Size(1180, 780);
-            Controls.Add(backgroundPanel);
+            Controls.Add(rootLayoutPanel);
             Controls.Add(statusStrip);
             Controls.Add(mainToolStrip);
             Controls.Add(mainMenuStrip);

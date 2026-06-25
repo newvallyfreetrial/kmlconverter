@@ -4,51 +4,21 @@ using System.Windows.Forms;
 
 namespace GISUniversalConverterPro.UI
 {
-    internal sealed class AnimatedGradientPanel : Panel
+    internal sealed class StaticGradientTableLayoutPanel : TableLayoutPanel
     {
-        private float _phase;
-
-        public AnimatedGradientPanel()
+        public StaticGradientTableLayoutPanel()
         {
             DoubleBuffered = true;
             ResizeRedraw = true;
         }
 
-        public Color FirstColor { get; set; } = ColorTranslator.FromHtml("#38BDF8");
-        public Color SecondColor { get; set; } = ColorTranslator.FromHtml("#14B8A6");
-        public Color AccentColor { get; set; } = ColorTranslator.FromHtml("#8EF7FF");
-
-        public void AdvanceGradient()
-        {
-            _phase += 0.015F;
-            if (_phase > MathF.Tau)
-            {
-                _phase = 0F;
-            }
-
-            Invalidate();
-        }
+        public Color TopColor { get; set; } = ColorTranslator.FromHtml("#E0F7FA");
+        public Color BottomColor { get; set; } = ColorTranslator.FromHtml("#B2EBF2");
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
-            var blend = (MathF.Sin(_phase) + 1F) / 2F;
-            var start = Blend(FirstColor, SecondColor, blend * 0.55F);
-            var end = Blend(SecondColor, AccentColor, 0.18F + (blend * 0.35F));
-
-            using var brush = new LinearGradientBrush(ClientRectangle, start, end, 135F);
+            using var brush = new LinearGradientBrush(ClientRectangle, TopColor, BottomColor, LinearGradientMode.Vertical);
             e.Graphics.FillRectangle(brush, ClientRectangle);
-
-            using var overlay = new SolidBrush(Color.FromArgb(190, 248, 252, 255));
-            e.Graphics.FillRectangle(overlay, ClientRectangle);
-        }
-
-        private static Color Blend(Color first, Color second, float amount)
-        {
-            amount = Math.Clamp(amount, 0F, 1F);
-            return Color.FromArgb(
-                (int)(first.R + ((second.R - first.R) * amount)),
-                (int)(first.G + ((second.G - first.G) * amount)),
-                (int)(first.B + ((second.B - first.B) * amount)));
         }
     }
 
@@ -72,6 +42,7 @@ namespace GISUniversalConverterPro.UI
             {
                 return;
             }
+
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using var path = CreateRoundRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
             using var brush = new SolidBrush(BackColor);
@@ -87,11 +58,12 @@ namespace GISUniversalConverterPro.UI
             {
                 return;
             }
+
             using var path = CreateRoundRectanglePath(new Rectangle(0, 0, Width, Height), CornerRadius);
             Region = new Region(path);
         }
 
-        private static GraphicsPath CreateRoundRectanglePath(Rectangle bounds, int radius)
+        protected static GraphicsPath CreateRoundRectanglePath(Rectangle bounds, int radius)
         {
             radius = Math.Max(1, Math.Min(radius, Math.Min(bounds.Width, bounds.Height) / 2));
             var diameter = radius * 2;
@@ -102,6 +74,27 @@ namespace GISUniversalConverterPro.UI
             path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
             path.CloseFigure();
             return path;
+        }
+    }
+
+    internal sealed class GradientRoundedPanel : RoundedPanel
+    {
+        public Color StartColor { get; set; } = ColorTranslator.FromHtml("#0891B2");
+        public Color EndColor { get; set; } = ColorTranslator.FromHtml("#06B6D4");
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (Width < 2 || Height < 2)
+            {
+                return;
+            }
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = CreateRoundRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var brush = new LinearGradientBrush(ClientRectangle, StartColor, EndColor, LinearGradientMode.Horizontal);
+            e.Graphics.FillPath(brush, path);
+            using var pen = new Pen(BorderColor, BorderThickness);
+            e.Graphics.DrawPath(pen, path);
         }
     }
 
@@ -137,23 +130,10 @@ namespace GISUniversalConverterPro.UI
 
             pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var fill = _pressed ? PressedColor : _hovered ? HoverColor : FillColor;
-            using var path = RoundedPanelPath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var path = CreateRoundRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
             using var brush = new SolidBrush(Enabled ? fill : Color.FromArgb(229, 235, 240));
             pevent.Graphics.FillPath(brush, path);
             TextRenderer.DrawText(pevent.Graphics, Text, Font, ClientRectangle, Enabled ? TextColor : Color.FromArgb(130, 146, 160), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.RightToLeft);
-        }
-
-        private static GraphicsPath RoundedPanelPath(Rectangle bounds, int radius)
-        {
-            radius = Math.Max(1, Math.Min(radius, Math.Min(bounds.Width, bounds.Height) / 2));
-            var diameter = radius * 2;
-            var path = new GraphicsPath();
-            path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
-            path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
-            path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-            path.CloseFigure();
-            return path;
         }
     }
 }
