@@ -10,12 +10,13 @@ namespace GISUniversalConverterPro.Services
     public sealed class ConversionManager
     {
         private readonly ArcGISEngine _arcGisEngine;
-        private readonly InternalEngine _internalEngine = new();
+        private readonly InternalEngine _internalEngine;
         private readonly LoggingService? _loggingService;
 
         public ConversionManager(LoggingService? loggingService = null)
         {
             _loggingService = loggingService;
+            _internalEngine = new InternalEngine { LoggingService = loggingService };
             _arcGisEngine = new ArcGISEngine(loggingService);
         }
 
@@ -57,6 +58,7 @@ namespace GISUniversalConverterPro.Services
                 {
                     internalEngine.Job = job;
                     internalEngine.ProgressReporter = progressReporter;
+                    internalEngine.LoggingService = effectiveLogging;
                     internalEngine.SetCancellationToken(cancellationToken);
                 }
                 else if (engine is ArcGISEngine arcGisEngine)
