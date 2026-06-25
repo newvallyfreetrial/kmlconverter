@@ -51,7 +51,7 @@ namespace GISUniversalConverterPro
         private ToolStripStatusLabel totalFilesStatusLabel;
         private ToolStripStatusLabel readyFilesStatusLabel;
         private TableLayoutPanel outputLayoutPanel;
-        private Timer gradientTimer;
+        private System.Windows.Forms.Timer gradientTimer;
 
         private ToolStripMenuItem fileMenuItem;
         private ToolStripMenuItem addFilesMenuItem;
@@ -127,7 +127,7 @@ namespace GISUniversalConverterPro
             totalFilesStatusLabel = new ToolStripStatusLabel();
             readyFilesStatusLabel = new ToolStripStatusLabel();
             outputLayoutPanel = new TableLayoutPanel();
-            gradientTimer = new Timer(components);
+            gradientTimer = new System.Windows.Forms.Timer(components);
 
             SuspendLayout();
 
